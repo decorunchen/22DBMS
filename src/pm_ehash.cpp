@@ -1,4 +1,7 @@
 #include"pm_ehash.h"
+#include<math.h>
+#include<string>
+#include<fstream>
 
 /**
  * @description: construct a new instance of PmEHash in a default directory
@@ -6,7 +9,15 @@
  * @return: new instance of PmEHash
  */
 PmEHash::PmEHash() {
+    std::fstream _file;
+    std::string fname = PM_EHASH_DIRECTORY + "1.txt";
+    _file.open(fname);
+    if(_file) {
+        //新建所需的数据文件
 
+    } else {
+        recover();
+    }
 }
 /**
  * @description: persist and munmap all data in NVM
@@ -14,7 +25,7 @@ PmEHash::PmEHash() {
  * @return: NULL
  */
 PmEHash::~PmEHash() {
-
+    selfDestory();
 }
 
 /**
@@ -49,6 +60,8 @@ int PmEHash::remove(uint64_t key) {
         if((bucket->slot)->key == key)
             break;
     bucket->bitmap[i] = 0;
+    if(i == 0)
+        mergeBucket(num);
     return 0;
 }
 /**
@@ -94,7 +107,17 @@ int PmEHash::search(uint64_t key, uint64_t& return_val) {
  * @return: 返回键所属的桶号
  */
 uint64_t PmEHash::hashFunc(uint64_t key) {
-    
+    uint64_t id = key % (1 << (metadata->global_depth));
+    uint64_t b_id;
+    int i = 0, j = 0;
+    while (i != metadata->global_depth) {
+        b_id += (uint64_t)pow(2, i);
+        id = id / 2;
+        i++;
+        j++;
+    }
+
+    return b_id;
 }
 
 /**
@@ -103,7 +126,15 @@ uint64_t PmEHash::hashFunc(uint64_t key) {
  * @return: 空闲桶的虚拟地址
  */
 pm_bucket* PmEHash::getFreeBucket(uint64_t key) {
-
+    uint64_t b_id = hashFunc(key);
+    pm_bucket* bucket = catalog.buckets_virtual_address[b_id];
+    size_t i;
+    for(i = 0; i < BUCKET_SLOT_NUM; i++)
+        if(bucket->bitmap[i] == 0)
+            break;
+    if(i == BUCKET_SLOT_NUM)
+        splitBucket(key);
+    return bucket;
 }
 
 /**
@@ -112,7 +143,11 @@ pm_bucket* PmEHash::getFreeBucket(uint64_t key) {
  * @return: 空闲键值对位置的虚拟地址
  */
 kv* PmEHash::getFreeKvSlot(pm_bucket* bucket) {
-
+    size_t i;
+    for(i = 0; i < BUCKET_SLOT_NUM; i++)
+        if(bucket->bitmap[i] == 0)
+            break;
+    return (bucket->slot) + i;
 }
 
 /**
@@ -121,7 +156,17 @@ kv* PmEHash::getFreeKvSlot(pm_bucket* bucket) {
  * @return: NULL
  */
 void PmEHash::splitBucket(uint64_t bucket_id) {
+    pm_bucket* bucket = catalog.buckets_virtual_address[bucket_id];
 
+    //局部深度自加1
+    ++(bucket->local_depth);
+
+    //如果局部深度大于全局深度，全局深度等于局部深度
+    if(metadata->global_depth < bucket->local_depth)
+        metadata->global_depth = bucket->local_depth;
+    
+    //桶分裂数据重组
+    
 }
 
 /**
@@ -148,7 +193,11 @@ void PmEHash::extendCatalog() {
  * @return: 新槽位的虚拟地址
  */
 void* PmEHash::getFreeSlot(pm_address& new_address) {
-
+    if(free_list.empty())
+        allocNewPage();
+    pm_bucket* bucket = free_list.front();
+    if(vAddr2pmAddr.count(bucket) > 0)
+        new_address = vAddr2pmAddr[bucket];
 }
 
 /**
