@@ -9,13 +9,21 @@
  * @return: new instance of PmEHash
  */
 PmEHash::PmEHash() {
-    std::fstream _file;
-    std::string fname = PM_EHASH_DIRECTORY + "1.txt";
-    _file.open(fname);
-    if(_file) {
+    if(isEmpty()) {
         //新建所需的数据文件
-
+        std::string path = PM_EHASH_DIRECTORY + "pm_ehash_metadata";
+        int is_pmem = 0;
+        metadata = pmem_map_file(path, 4096, PMEM_FILE_CREATE, 0666, NULL, &is_pmem);
+        if(metadata == NULL)
+            return;
+        
+        is_pmem = 0;
+        path = PM_EHASH_DIRECTORY + "pm_ehash_catalog";
+        catalog = pmem_map_file(path, 4096, PMEM_FILE_CREATE, 0666, NULL, &is_pmem);
+        if(catalog == NULL)
+            return;
     } else {
+        //回复哈希文件
         recover();
     }
 }
@@ -175,6 +183,8 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
  * @return: NULL
  */
 void PmEHash::mergeBucket(uint64_t bucket_id) {
+    pm_bucket* bucket = catalog.buckets_virtual_address[bucket_id];
+    free_list.push(bucket);
     
 }
 
@@ -215,7 +225,7 @@ void PmEHash::allocNewPage() {
  * @return: NULL
  */
 void PmEHash::recover() {
-
+    mapAllPage();
 }
 
 /**
@@ -235,3 +245,15 @@ void PmEHash::mapAllPage() {
 void PmEHash::selfDestory() {
 
 }
+
+/**
+ * @description: 判断是否应该初始化哈希表
+ * @param NULL
+ * @return: 1需要初始化 0不需要
+ */
+ int PmEHash::isEmpty() {
+     std::FILE* file = fopen("../data/pm_ehash_metadata", "r");
+     if(file == NULL)
+        return 1;
+    return 0;
+ }

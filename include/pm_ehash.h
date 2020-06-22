@@ -85,6 +85,7 @@ private:
 
     void recover();
     void mapAllPage();
+    int isEmpty();
 
 public:
     PmEHash();
