@@ -2,6 +2,9 @@
 #include<math.h>
 #include<string>
 #include<fstream>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 /**
  * @description: construct a new instance of PmEHash in a default directory
@@ -10,20 +13,32 @@
  */
 PmEHash::PmEHash() {
     if(isEmpty()) {
-        //新建所需的数据文件
-        std::string path = PM_EHASH_DIRECTORY + "pm_ehash_metadata";
+        //新建元数据文件
         int is_pmem = 0;
-        metadata = pmem_map_file(path, 4096, PMEM_FILE_CREATE, 0666, NULL, &is_pmem);
-        if(metadata == NULL)
-            return;
+        size_t mapped_len;
+        std::string PATH = PM_EHASH_DIRECTORY + META_NAME;
         
-        is_pmem = 0;
-        path = PM_EHASH_DIRECTORY + "pm_ehash_catalog";
-        catalog = pmem_map_file(path, 4096, PMEM_FILE_CREATE, 0666, NULL, &is_pmem);
-        if(catalog == NULL)
+        metadata = new ehash_metadata();
+        metadata->catalog_size = 0;
+        metadata->global_depth = 2;
+        metadata->max_file_id = 1;
+        char* metaFile = pmem_map_file(PATH, (metadata->catalog_size) * sizeof(pm_bucket), PMEM_FILE_CREATE, 0666, &mapped_len, &is_pmem);
+        if(metaFile == NULL)
+            return;
+        std::string data = metadata->catalog_size + " " + metadata->global_depth + " " + metadata->max_file_id;
+        char dataC[10];
+        strcpy(dataC, data.c_str()); 
+        strcpy(metaFile, dataC);
+        allocNewPage();
+
+        //新建目录文件
+        PATH = PM_EHASH_DIRECTORY + CATALOG_NAME;
+        catalog = ehash_catalog();
+        char* cataFile = pmem_map_file(PATH, sizeof(pm_address) * 16 * 100000, PMEM_FILE_CREATE, 0666, &mapped_len, &is_pmem);
+        if(cataFile == NULL)
             return;
     } else {
-        //回复哈希文件
+        //恢复哈希文件
         recover();
     }
 }
@@ -169,9 +184,11 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
     //局部深度自加1
     ++(bucket->local_depth);
 
-    //如果局部深度大于全局深度，全局深度等于局部深度
-    if(metadata->global_depth < bucket->local_depth)
+    //如果局部深度大于全局深度，全局深度等于局部深度,并且目录倍增
+    if(metadata->global_depth < bucket->local_depth) {
         metadata->global_depth = bucket->local_depth;
+        extendCatalog();
+    }
     
     //桶分裂数据重组
     
@@ -194,7 +211,8 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
  * @return: NULL
  */
 void PmEHash::extendCatalog() {
-
+    uint64_t gd = metadata->global_depth;
+    
 }
 
 /**
