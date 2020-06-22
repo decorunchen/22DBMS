@@ -25,6 +25,10 @@ PmEHash::PmEHash() {
         char* metaFile = pmem_map_file(PATH, (metadata->catalog_size) * sizeof(pm_bucket), PMEM_FILE_CREATE, 0666, &mapped_len, &is_pmem);
         if(metaFile == NULL)
             return;
+        if (is_pmem)
+            pmem_persist(pmemaddr, mapped_len);
+        else
+            pmem_msync(pmemaddr, mapped_len);
         std::string data = metadata->catalog_size + " " + metadata->global_depth + " " + metadata->max_file_id;
         char dataC[10];
         strcpy(dataC, data.c_str()); 
@@ -37,6 +41,10 @@ PmEHash::PmEHash() {
         char* cataFile = pmem_map_file(PATH, sizeof(pm_address) * 16 * 100000, PMEM_FILE_CREATE, 0666, &mapped_len, &is_pmem);
         if(cataFile == NULL)
             return;
+        if (is_pmem)
+            pmem_persist(pmemaddr, mapped_len);
+        else
+            pmem_msync(pmemaddr, mapped_len);
     } else {
         //恢复哈希文件
         recover();
@@ -202,7 +210,10 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
 void PmEHash::mergeBucket(uint64_t bucket_id) {
     pm_bucket* bucket = catalog.buckets_virtual_address[bucket_id];
     free_list.push(bucket);
-    
+    if(vAddr2pmAddr.count(bucket) <= 0)
+        return;
+    pm_address address = vAddr2pmAddr[bucket];
+    recovery(bucket_id % DATA_PAGE_SLOT_NUM, address.fileId);
 }
 
 /**
@@ -234,7 +245,11 @@ void* PmEHash::getFreeSlot(pm_address& new_address) {
  * @return: NULL
  */
 void PmEHash::allocNewPage() {
-
+    data_page* fname = persistFile();
+    if(fname == NULL)
+        return;
+    for(size_t i = 0; i < DATA_PAGE_SLOT_NUM; i++)
+        free_list.push((fname->buckets) + i);
 }
 
 /**
