@@ -26,13 +26,14 @@ PmEHash::PmEHash() {
         if(metaFile == NULL)
             return;
         if (is_pmem)
-            pmem_persist(pmemaddr, mapped_len);
+            pmem_persist(metaFile, mapped_len);
         else
-            pmem_msync(pmemaddr, mapped_len);
+            pmem_msync(metaFile, mapped_len);
         std::string data = metadata->catalog_size + " " + metadata->global_depth + " " + metadata->max_file_id;
         char dataC[10];
         strcpy(dataC, data.c_str()); 
         strcpy(metaFile, dataC);
+        map_list.push(mapped_len);
         allocNewPage();
 
         //新建目录文件
@@ -42,9 +43,10 @@ PmEHash::PmEHash() {
         if(cataFile == NULL)
             return;
         if (is_pmem)
-            pmem_persist(pmemaddr, mapped_len);
+            pmem_persist(cataFile, mapped_len);
         else
-            pmem_msync(pmemaddr, mapped_len);
+            pmem_msync(cataFile, mapped_len);
+        map_list.push(mapped_len);
     } else {
         //恢复哈希文件
         recover();
@@ -267,7 +269,7 @@ void PmEHash::recover() {
  * @return: NULL
  */
 void PmEHash::mapAllPage() {
-
+    
 }
 
 /**
@@ -276,7 +278,20 @@ void PmEHash::mapAllPage() {
  * @return: NULL
  */
 void PmEHash::selfDestory() {
-
+    std::string path = PM_EHASH_DIRECTORY + META_NAME;
+    pmem_unmap(path, map_list.front());
+    std::remove(path.c_str());
+    map_list.pop();
+    path = PM_EHASH_DIRECTORY + CATALOG_NAME;
+    pmem_unmap(path, map_list.front());
+    std::remove(path.c_str());
+    map_list.pop();
+    for(int i = 1; i <= page_num; i++) {
+        path = "../data/" + std::to_string(i);
+        pmem_unmap(path, map_list.front());
+        map_list.pop();
+        std::remove(path.c_str());
+    }
 }
 
 /**

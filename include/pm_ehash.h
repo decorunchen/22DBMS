@@ -15,6 +15,8 @@
 using std::queue;
 using std::map;
 
+queue<size_t> map_list;
+
 /* 
 ---the physical address of data in NVM---
 fileId: 1-N, the data page name

@@ -29,18 +29,20 @@ data_page* persistFile() {
     pages[page_num]->file_name = fname;
     pages[page_num]->buckets = new pm_bucket[DATA_PAGE_SLOT_NUM];
     int is_pmem = 0;
-    size_t mamped_len;
-    std::string PATH = PM_EHASH_DIRECTORY + page_num;
+    size_t mapped_len;
+    std::string PATH = PM_EHASH_DIRECTORY + std::to_string(page_num);
     char* file = pmem_map_file(PATH, DATA_PAGE_SLOT_NUM * sizeof(pm_bucket), PMEM_FILE_CREATE, 0666, &mapped_len, &is_pmem);
     if(file == NULL)
         return NULL；
     if (is_pmem)
-        pmem_persist(pmemaddr, mapped_len);
+        pmem_persist(file, mapped_len);
     else
-        pmem_msync(pmemaddr, mapped_len);
+        pmem_msync(file, mapped_len);
+    
+    map_list.push(mapped_len);
 
     ISPAGE[page_num] = 1;
     page_num++;
-        
+    
     return file;
 }
