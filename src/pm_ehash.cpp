@@ -74,6 +74,11 @@ int PmEHash::insert(kv new_kv_pair) {
     kv* freePlace = getFreeKvSlot(bucket);
     *freePlace = new_kv_pair;
     persist(freePlace);
+    size_t i;
+    for(i = 0; i < BUCKET_SLOT_NUM; i++)
+        if(bucket->slot[i].key == new_kv_pair.key)
+            break;
+    bucket->bitmap[i / 8 + 1] = 1;
     return 0;
 }
 
@@ -92,7 +97,7 @@ int PmEHash::remove(uint64_t key) {
     for(i = 0; i < BUCKET_SLOT_NUM; i++)
         if((bucket->slot)->key == key)
             break;
-    bucket->bitmap[i] = 0;
+    bucket->bitmap[i / 8 + 1] = 0;
     if(i == 0)
         mergeBucket(num);
     return 0;
@@ -216,6 +221,8 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
         return;
     pm_address address = vAddr2pmAddr[bucket];
     recovery(bucket_id % DATA_PAGE_SLOT_NUM, address.fileId);
+    //设置相应目录项指针
+    
 }
 
 /**
