@@ -20,8 +20,8 @@ PmEHash::PmEHash() {
         
         //创建pm_ehash_metadata文件
         metadata = new ehash_metadata();
-        metadata->catalog_size = 0;
-        metadata->global_depth = 2;
+        metadata->catalog_size = DEFAULT_CATALOG_SIZE;
+        metadata->global_depth = 4;
         metadata->max_file_id = 1;
         char* metaFile = pmem_map_file(PATH, (metadata->catalog_size) * sizeof(pm_bucket), PMEM_FILE_CREATE, 0666, &mapped_len, &is_pmem);
         if(metaFile == NULL)
