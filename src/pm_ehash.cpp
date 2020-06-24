@@ -83,21 +83,6 @@ int PmEHash::insert(kv new_kv_pair) {
         if(bucket->slot[i].key == new_kv_pair.key)
             break;
     bucket->bitmap[i / 8 + 1] = 1;
-    pm_address n_addr = pm_address();
-    n_addr.fileId = page_num + 1;
-    n_addr.offset = i * (sizeof(n_addr.fileId) + sizeof(n_addr.offset) + sizeof("\n"));
-    if(vAddr2pmAddr.count(bucket) > 0){
-
-    }
-    else{
-        vAddr2pmAddr.insert(std::make_pair(bucket, n_addr));
-        std::string path = PM_EHASH_DIRECTORY + META_NAME;
-        ofstream file(path, ofstream::app);
-        if(!file.is_open())
-            return;
-        file << n_addr.fileId << n_addr.offset << "\n" << std::endl;
-        file.close();
-    }
     return 0;
 }
 
@@ -289,8 +274,24 @@ void PmEHash::allocNewPage() {
     data_page* fname = persistFile();
     if(fname == NULL)
         return;
-    for(size_t i = 0; i < DATA_PAGE_SLOT_NUM; i++)
-        free_list.push((fname->buckets) + i);
+
+    std::string path = PM_EHASH_DIRECTORY + META_NAME;
+    ofstream file(path, ofstream::app);
+    if(!file.is_open())
+        return;
+
+    //配置vAddr2pmAddr和pmAddr2vAddr
+    for(size_t i = 0; i < DATA_PAGE_SLOT_NUM; i++) {
+        pm_bucket* bucket = (fname->buckets) + i;
+        free_list.push(bucket);
+        pm_address n_addr = pm_address();
+        n_addr.fileId = page_num + 1;
+        n_addr.offset = i * (sizeof(n_addr.fileId) + sizeof(n_addr.offset) + sizeof("\n"));
+        vAddr2pmAddr.insert(std::make_pair(bucket, n_addr));
+        pmAddr2vAddr.insert(std::make_pair(n_addr, bucket));
+        file << n_addr.fileId << n_addr.offset << "\n" << std::endl;
+    }
+    file.close();
 }
 
 /**
