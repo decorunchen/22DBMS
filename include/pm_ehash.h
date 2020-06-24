@@ -4,6 +4,7 @@
 #include<cstdint>
 #include<queue>
 #include<map>
+#include<algorithm>
 #include"data_page.h"
 
 #define BUCKET_SLOT_NUM               15
@@ -14,6 +15,7 @@
 
 using std::queue;
 using std::map;
+using std::ofstream;
 
 queue<size_t> map_list;
 

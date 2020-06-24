@@ -4,7 +4,7 @@
 #define DATA_PAGE_SLOT_NUM 16
 #define PAGE_NUM 100000
 // use pm_address to locate the data in the page
-int page_num = 0;
+int page_num = 1;
 data_page pages[PAGE_NUM];
 int ISPAGE[PAGE_NUM] = {0};
 

@@ -18,6 +18,7 @@ PmEHash::PmEHash() {
         size_t mapped_len;
         std::string PATH = PM_EHASH_DIRECTORY + META_NAME;
         
+        //创建pm_ehash_metadata文件
         metadata = new ehash_metadata();
         metadata->catalog_size = 0;
         metadata->global_depth = 2;
@@ -67,18 +68,36 @@ PmEHash::~PmEHash() {
  * @return: 0 = insert successfully, -1 = fail to insert(target data with same key exist)
  */
 int PmEHash::insert(kv new_kv_pair) {
+    //判断哈希表中是否已经存在该键值对
     uint64_t ret = 0;
     if(search(new_kv_pair.key, ret) == 0)
         return -1;
     pm_bucket* bucket = getFreeBucket(new_kv_pair.key);
     kv* freePlace = getFreeKvSlot(bucket);
     *freePlace = new_kv_pair;
+    //持久化
     persist(freePlace);
+    //设置相应的bitmap
     size_t i;
     for(i = 0; i < BUCKET_SLOT_NUM; i++)
         if(bucket->slot[i].key == new_kv_pair.key)
             break;
     bucket->bitmap[i / 8 + 1] = 1;
+    pm_address n_addr = pm_address();
+    n_addr.fileId = page_num + 1;
+    n_addr.offset = i * (sizeof(n_addr.fileId) + sizeof(n_addr.offset) + sizeof("\n"));
+    if(vAddr2pmAddr.count(bucket) > 0){
+
+    }
+    else{
+        vAddr2pmAddr.insert(std::make_pair(bucket, n_addr));
+        std::string path = PM_EHASH_DIRECTORY + META_NAME;
+        ofstream file(path, ofstream::app);
+        if(!file.is_open())
+            return;
+        file << n_addr.fileId << n_addr.offset << "\n" << std::endl;
+        file.close();
+    }
     return 0;
 }
 
@@ -93,11 +112,15 @@ int PmEHash::remove(uint64_t key) {
     uint64_t r_val;
     if(search(key, r_val) == -1)
         return -1;
+    
+    //位图置0
     size_t i;
     for(i = 0; i < BUCKET_SLOT_NUM; i++)
         if((bucket->slot)->key == key)
             break;
     bucket->bitmap[i / 8 + 1] = 0;
+
+    //桶是否空了
     if(i == 0)
         mergeBucket(num);
     return 0;
@@ -147,6 +170,8 @@ int PmEHash::search(uint64_t key, uint64_t& return_val) {
 uint64_t PmEHash::hashFunc(uint64_t key) {
     uint64_t id = key % (1 << (metadata->global_depth));
     uint64_t b_id;
+
+    //取后几位
     int i = 0, j = 0;
     while (i != metadata->global_depth) {
         b_id += (uint64_t)pow(2, i);
@@ -168,8 +193,10 @@ pm_bucket* PmEHash::getFreeBucket(uint64_t key) {
     pm_bucket* bucket = catalog.buckets_virtual_address[b_id];
     size_t i;
     for(i = 0; i < BUCKET_SLOT_NUM; i++)
-        if(bucket->bitmap[i] == 0)
+        if(bucket->bitmap[i / 8 + 1] == 0)
             break;
+    
+    //桶分裂
     if(i == BUCKET_SLOT_NUM)
         splitBucket(key);
     return bucket;
@@ -183,7 +210,7 @@ pm_bucket* PmEHash::getFreeBucket(uint64_t key) {
 kv* PmEHash::getFreeKvSlot(pm_bucket* bucket) {
     size_t i;
     for(i = 0; i < BUCKET_SLOT_NUM; i++)
-        if(bucket->bitmap[i] == 0)
+        if(bucket->bitmap[i / 8 + 1] == 0)
             break;
     return (bucket->slot) + i;
 }
@@ -206,7 +233,12 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
     }
     
     //桶分裂数据重组
-    
+    kv* kvs = bucket->slot;
+    for(size_t i = 0; i < BUCKET_SLOT_NUM; i++)
+        if(bucket->bitmap[i / 8 + 1] == 1)
+            bucket->bitmap[i / 8 + 1] = 0;
+    for(size_t i = 0; i < sizeof(kvs) / sizeof(kv); i++)
+        insert(kvs[i]);
 }
 
 /**
@@ -222,7 +254,7 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
     pm_address address = vAddr2pmAddr[bucket];
     recovery(bucket_id % DATA_PAGE_SLOT_NUM, address.fileId);
     //设置相应目录项指针
-    
+    catalog.buckets_virtual_address[bucket_id] = NULL;
 }
 
 /**
