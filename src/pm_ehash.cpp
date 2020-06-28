@@ -249,7 +249,14 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
  */
 void PmEHash::extendCatalog() {
     uint64_t gd = metadata->global_depth;
-    
+    metadata->catalog_size *= 2;
+     char* metaFile = pmem_map_file(PATH, (metadata->catalog_size) * sizeof(pm_bucket), PMEM_FILE_CREATE, 0666, &mapped_len, &is_pmem);
+
+    pm_bucket **new_virtual_address = new pm_bucket*[metadata->catalog_size];
+	memcpy(new_virtual_address + metadata->catalog_size / 2, catalog.buckets_virtual_address, sizeof(pm_bucket*) * metadata->catalog_size / 2);
+	memcpy(new_virtual_address, catalog.buckets_virtual_address, sizeof(pm_bucket*) * metadata->catalog_size / 2);
+    delete[] catalog.buckets_virtual_address;
+	catalog.buckets_virtual_address = new_virtual_address;
 }
 
 /**
