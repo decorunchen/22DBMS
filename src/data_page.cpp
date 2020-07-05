@@ -1,22 +1,22 @@
 #include"pm_ehash.h"
+#include"data_page.h"
 #include<libpmem.h>
 
 // 数据页表的相关操作实现都放在这个源文件下，如PmEHash申请新的数据页和删除数据页的底层实现
+int page_num = 1;
+data_page **pages;         //data_page.h中的全局变量
 
 /**
  * @decription: 移除指定slot
  * @param 下标, 数据页号
  * @return NULL
  */
-void recovery(uint64_t index, uint64_t pnum) {
-    if(ISPAGE[pnum] != 0)
-        return;
-    for(size_t i = index; i < n - 1; i++)
-        pages[pnum].buckets[i] = pages[pnum].buckets[i + 1];
+void recovery(pm_address addr) {
+    pages[addr.fileId]->bitmap = pages[addr.fileId]->bitmap & ~(1 << addr.offset);
 }
 
 void persist(void* address) {
-    pmem_persisit(address, sizeof(kv));
+    pmem_persist(address, sizeof(kv));
 }
 
 /**
@@ -25,24 +25,11 @@ void persist(void* address) {
  * @return: 新建的文件句柄
  */
 data_page* persistFile() {
-    pages[page_num] = data_page();
-    pages[page_num]->file_name = fname;
-    pages[page_num]->buckets = new pm_bucket[DATA_PAGE_SLOT_NUM];
     int is_pmem = 0;
     size_t mapped_len;
-    std::string PATH = PM_EHASH_DIRECTORY + std::to_string(page_num);
-    char* file = pmem_map_file(PATH, DATA_PAGE_SLOT_NUM * sizeof(pm_bucket), PMEM_FILE_CREATE, 0666, &mapped_len, &is_pmem);
-    if(file == NULL)
-        return NULL；
-    if (is_pmem)
-        pmem_persist(file, mapped_len);
-    else
-        pmem_msync(file, mapped_len);
-    
-    map_list.push(mapped_len);
-
-    ISPAGE[page_num] = 1;
-    page_num++;
-    
+    char PATH[100];
+    sprintf(PATH, "%s/%d", PM_EHASH_DIRECTORY, page_num);
+    data_page *file = (data_page*)pmem_map_file(PATH, sizeof(data_page), PMEM_FILE_CREATE, 0777, &mapped_len, &is_pmem);
+    file->map_len = mapped_len;
     return file;
 }
